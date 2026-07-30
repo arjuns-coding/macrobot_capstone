@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MacroBot — Nutrition Engine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script type="module" src="https://gradio.s3-us-west-2.amazonaws.com/6.20.0/gradio.js"></script>
+
+    <style>
+        :root {
+            --macro-blue: #2257fc;
+            --macro-green: #12c684;
+            --macro-coral: #ff6961;
+            --macro-bg: #f6f7f9;
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+            --text-main: #111111;
+            --text-muted: #6b7280;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        body {
+            background-color: var(--macro-bg);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        /* App Layout Container */
+        .app-container {
+            width: 100%;
+            max-width: 480px;
+            background: var(--macro-bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            padding-bottom: 90px;
+        }
+
+        /* Onboarding Screen */
+        .onboarding-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--macro-bg);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 30px;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        .onboarding-screen.hidden {
+            opacity: 0;
+            transform: scale(0.96);
+            pointer-events: none;
+        }
+
+        .input-group {
+            margin: 24px 0;
+        }
+
+        .age-input {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid rgba(0,0,0,0.05);
+            background: #ffffff;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .age-input:focus {
+            border-color: var(--macro-blue);
+        }
+
+        /* Header Setup with Logo */
+        header {
+            padding: 24px 20px 10px 20px;
+            background: var(--macro-bg);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-container {
+            width: 42px;
+            height: 42px;
+        }
+
+        header h1 {
+            font-size: 26px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+
+        header p {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
+
+        /* View Controllers */
+        .view-content {
+            padding: 0 20px;
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .view-content.active {
+            display: flex;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Card System Styling */
+        .card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: var(--card-shadow);
+        }
+
+        /* Hero Ring Element */
+        .hero-ring-container {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .svg-ring-wrapper {
+            position: relative;
+            width: 120px;
+            height: 120px;
+        }
+
+        .svg-ring-wrapper svg {
+            width: 120px;
+            height: 120px;
+            transform: rotate(-90deg);
+        }
+
+        .svg-ring-bg {
+            fill: none;
+            stroke: rgba(34, 87, 252, 0.08);
+            stroke-width: 12;
+        }
+
+        .svg-ring-progress {
+            fill: none;
+            stroke: url(#ring-gradient);
+            stroke-width: 12;
+            stroke-linecap: round;
+            stroke-dasharray: 339.29; 
+            stroke-dashoffset: 339.29;
+            transition: stroke-dashoffset 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .ring-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .ring-text .count {
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .ring-text .label {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .hero-details {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .hero-details .target-lbl {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .hero-details .target-val {
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .hero-details .rem-val {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--macro-blue);
+        }
+
+        /* Grid Cards Setup */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .mini-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 18px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .mini-card-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .icon-circle {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+
+        .mini-card .value {
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        /* Progress Tracking Bars */
+        .progress-bar-bg {
+            width: 100%;
+            height: 6px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+
+        .water-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-counter {
+            border: none;
+            background: none;
+            cursor: pointer;
+            font-size: 22px;
+            line-height: 1;
+            transition: transform 0.1s ease;
+        }
+
+        .btn-counter:active { transform: scale(0.9); }
+        .btn-counter.minus { color: var(--text-muted); }
+        .btn-counter.plus { color: var(--macro-green); }
+
+        /* Macro Breakdown Component */
+        .macro-split-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-bottom: 12px;
+        }
+
+        .split-bar-wrapper {
+            width: 100%;
+            height: 12px;
+            background: rgba(0, 0, 0, 0.05);
+            border-radius: 6px;
+            display: flex;
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+
+        .split-segment {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .macro-pills-container {
+            display: flex;
+            justify-content: space-between;
+            gap: 4px;
+        }
+
+        .macro-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+        }
+
+        .macro-pill .dot {
+            width: 8px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .macro-pill span { font-weight: 500; color: var(--text-muted); }
+        .macro-pill strong { font-weight: 700; color: var(--text-main); }
+
+        /* Today's Log Card Lists */
+        .log-section-title {
+            font-size: 15px;
+            font-weight: 700;
+            margin-top: 8px;
+        }
+
+        .logs-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .food-row-card {
+            background: #ffffff;
+            border-radius: 20px;
+            padding: 18px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .food-row-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .food-row-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .food-row-time {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .food-row-cal {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--macro-green);
+        }
+
+        .food-row-tags {
+            display: flex;
+            gap: 8px;
+        }
+
+        .micro-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .ai-swap-bubble {
+            display: flex;
+            gap: 8px;
+            background: rgba(34, 87, 252, 0.06);
+            padding: 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--macro-blue);
+            line-height: 1.4;
+        }
+
+        /* Input view forms */
+        .textarea-input {
+            width: 100%;
+            height: 110px;
+            background: var(--macro-bg);
+            border: none;
+            border-radius: 16px;
+            padding: 16px;
+            font-size: 14px;
+            font-weight: 500;
+            resize: none;
+            outline: none;
+            margin-top: 14px;
+            margin-bottom: 16px;
+        }
+
+        .btn-submit {
+            width: 100%;
+            background: linear-gradient(135deg, var(--macro-blue), #1a4cd2);
+            color: #ffffff;
+            border: none;
+            border-radius: 16px;
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(34, 87, 252, 0.2);
+        }
+
+        /* Weekly Analytics Charts */
+        .chart-container {
+            height: 220px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 10px;
+            padding-top: 20px;
+        }
+
+        .chart-column {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            height: 100%;
+            justify-content: flex-end;
+        }
+
+        .chart-bar-fill {
+            width: 12px;
+            border-radius: 6px;
+            background: linear-gradient(to top, rgba(34, 87, 252, 0.8), rgba(18, 198, 132, 0.9));
+            height: 0%;
+            transition: height 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        .chart-day-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        /* Floating Nav Bar UI */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 480px;
+            height: 74px;
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-top: 1px solid rgba(0, 0, 0, 0.04);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .tab-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+            cursor: pointer;
+            background: none;
+            border: none;
+            flex: 1;
+            height: 100%;
+            justify-content: center;
+        }
+
+        .tab-item.active {
+            color: var(--macro-blue);
+        }
+
+        .tab-item svg {
+            width: 22px;
+            height: 22px;
+            stroke-width: 2.3;
+            fill: none;
+            stroke: currentColor;
+            transition: transform 0.2s ease;
+        }
+        
+        .tab-item.active svg {
+            stroke-width: 2.6;
+        }
+
+        .tab-item span {
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 30px 0;
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .gradio-card {
+            background: #ffffff;
+            border-radius: 24px;
+            padding: 8px;
+            box-shadow: var(--card-shadow);
+            overflow: hidden;
+            min-height: 520px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <div id="onboarding-view" class="onboarding-screen">
+            <div class="card" style="text-align: center; display: flex; flex-direction: column; gap: 8px;">
+                <div style="width: 64px; height: 64px; margin: 0 auto 8px auto;">
+                    <svg viewBox="0 0 100 100" style="width:100%; height:100%;">
+                        <defs>
+                            <linearGradient id="logo-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#2257fc" />
+                                <stop offset="100%" stop-color="#12c684" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="15" y="15" width="70" height="70" rx="22" fill="url(#logo-grad-2)" />
+                        <circle cx="38" cy="45" r="7" fill="#ffffff" />
+                        <circle cx="62" cy="45" r="7" fill="#ffffff" />
+                        <path d="M35 65 Q50 75 65 65" stroke="#ffffff" stroke-width="6" stroke-linecap="round" fill="none" />
+                    </svg>
+                </div>
+                <h2 style="font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">Welcome to MacroBot</h2>
+                <p style="font-size: 14px; color: var(--text-muted);">Let's personalize your daily tracking targets.</p>
+                
+                <div class="input-group">
+                    <label style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 8px;">Enter Your Age</label>
+                    <input type="number" id="user-age-input" class="age-input" placeholder="e.g. 16" min="1" max="120">
+                </div>
+
+                <button class="btn-submit" onclick="setupProfileAge()">
+                    Get Started ⚡
+                </button>
+            </div>
+        </div>
+
+        <header>
+            <div class="logo-container">
+                <svg viewBox="0 0 100 100" style="width:100%; height:100%;">
+                    <defs>
+                        <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stop-color="#2257fc" />
+                            <stop offset="100%" stop-color="#12c684" />
+                        </linearGradient>
+                    </defs>
+                    <rect x="10" y="10" width="80" height="80" rx="26" fill="url(#logo-grad)" />
+                    <circle cx="35" cy="46" r="8" fill="#ffffff" />
+                    <circle cx="65" cy="46" r="8" fill="#ffffff" />
+                    <path d="M32 66 Q50 76 68 66" stroke="#ffffff" stroke-width="7" stroke-linecap="round" fill="none" />
+                </svg>
+            </div>
+            <div>
+                <h1 id="app-title">MacroBot</h1>
+                <p id="app-subtitle">Overview</p>
+            </div>
+        </header>
+
+        <div id="view-overview" class="view-content active">
+            <div class="card hero-ring-container">
+                <div class="svg-ring-wrapper">
+                    <svg viewBox="0 0 120 120">
+                        <circle class="svg-ring-bg" cx="60" cy="60" r="54" />
+                        <circle id="calorie-progress-ring" class="svg-ring-progress" cx="60" cy="60" r="54" />
+                    </svg>
+                    <div class="ring-text">
+                        <div id="cal-eaten" class="count">0</div>
+                        <div class="label">kcal eaten</div>
+                    </div>
+                </div>
+                <div class="hero-details">
+                    <div class="target-lbl">Daily Target</div>
+                    <div class="target-val" id="cal-goal-text">2000 kcal</div>
+                    <div class="rem-val" id="cal-remaining-text">2000 kcal remaining</div>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="mini-card">
+                    <div class="mini-card-header">
+                        <div class="icon-circle" style="background: rgba(34,87,252,0.1); color: var(--macro-blue);">⚡</div>
+                        <span>Protein Target</span>
+                    </div>
+                    <div class="value" id="protein-stat-text">0g / 140g</div>
+                    <div class="progress-bar-bg">
+                        <div id="protein-progress-fill" class="progress-bar-fill" style="background: var(--macro-blue);"></div>
+                    </div>
+                </div>
+
+                <div class="mini-card">
+                    <div class="mini-card-header">
+                        <div class="icon-circle" style="background: rgba(18,198,132,0.1); color: var(--macro-green);">💧</div>
+                        <span>Hydration</span>
+                    </div>
+                    <div class="value" id="water-stat-text">3/8 Cups</div>
+                    <div class="water-actions">
+                        <button class="btn-counter minus" onclick="adjustWater(-1)">⊖</button>
+                        <button class="btn-counter plus" onclick="adjustWater(1)">⊕</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="macro-split-title">Current Balance</div>
+                <div class="split-bar-wrapper">
+                    <div id="segment-protein" class="split-segment" style="background: var(--macro-blue); width: 0%;"></div>
+                    <div id="segment-carbs" class="split-segment" style="background: var(--macro-green); width: 0%;"></div>
+                    <div id="segment-fats" class="split-segment" style="background: var(--macro-coral); width: 0%;"></div>
+                </div>
+                <div class="macro-pills-container">
+                    <div class="macro-pill" style="background: rgba(34,87,252,0.06);">
+                        <div class="dot" style="background: var(--macro-blue);"></div>
+                        <span>Prot</span> <strong id="pill-p-text">0g</strong>
+                    </div>
+                    <div class="macro-pill" style="background: rgba(18,198,132,0.06);">
+                        <div class="dot" style="background: var(--macro-green);"></div>
+                        <span>Carbs</span> <strong id="pill-c-text">0g</strong>
+                    </div>
+                    <div class="macro-pill" style="background: rgba(255,105,97,0.06);">
+                        <div class="dot" style="background: var(--macro-coral);"></div>
+                        <span>Fats</span> <strong id="pill-f-text">0g</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="log-section-title">Today's Entries</div>
+            <div id="history-logs-container" class="logs-wrapper"></div>
+        </div>
+
+        <div id="view-log" class="view-content">
+            <div class="card">
+                <div class="macro-split-title" style="font-size: 18px; margin-bottom: 6px;">What's on your plate?</div>
+                <p style="font-size: 13px; color: var(--text-muted); line-height: 1.4;">
+                    Type out your meals normally. Try writing things like 'chicken and rice' or explore dynamic swaps by entering 'chips' or 'soda'.
+                </p>
+                <textarea id="food-input-box" class="textarea-input" placeholder="Describe your meal..."></textarea>
+                <button class="btn-submit" onclick="submitFoodLog()">
+                    <span>✦</span> Analyze Intent
+                </button>
+            </div>
+        </div>
+
+        <div id="view-chatbot" class="view-content">
+            <div class="gradio-card">
+                <gradio-app src="https://kode-with-klossy-3-3-groupd3-capstone.hf.space"></gradio-app>
+            </div>
+        </div>
+
+        <div id="view-trends" class="view-content">
+            <div class="card">
+                <div class="macro-split-title">Caloric Trajectory</div>
+                <div class="chart-container">
+                    <div class="chart-column"><div id="chart-bar-0" class="chart-bar-fill"></div><div class="chart-day-label">Mon</div></div>
+                    <div class="chart-column"><div id="chart-bar-1" class="chart-bar-fill"></div><div class="chart-day-label">Tue</div></div>
+                    <div class="chart-column"><div id="chart-bar-2" class="chart-bar-fill"></div><div class="chart-day-label">Wed</div></div>
+                    <div class="chart-column"><div id="chart-bar-3" class="chart-bar-fill"></div><div class="chart-day-label">Thu</div></div>
+                    <div class="chart-column"><div id="chart-bar-4" class="chart-bar-fill"></div><div class="chart-day-label">Fri</div></div>
+                    <div class="chart-column"><div id="chart-bar-5" class="chart-bar-fill"></div><div class="chart-day-label">Sat</div></div>
+                    <div class="chart-column"><div id="chart-bar-6" class="chart-bar-fill"></div><div class="chart-day-label">Sun</div></div>
+                </div>
+            </div>
+        </div>
+
+        <nav class="tab-bar">
+            <button class="tab-item active" onclick="switchTab('overview', 'Overview')">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <span>Overview</span>
+            </button>
+            <button class="tab-item" onclick="switchTab('log', 'AI Logging Engine')">
+                <svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <span>Log</span>
+            </button>
+            <button class="tab-item" onclick="switchTab('chatbot', 'AI Assistant')">
+                <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <span>AI Chat</span>
+            </button>
+            <button class="tab-item" onclick="switchTab('trends', 'Weekly Summary')">
+                <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                <span>Trends</span>
+            </button>
+        </nav>
+    </div>
+
+    <script>
+        let state = {
+            records: [],
+            waterDrank: 3,
+            calorieGoal: 2000,
+            proteinGoal: 140,
+            waterGoal: 8,
+            weeklyCalories: [1650, 1920, 2100, 1450, 1880, 0, 0]
+        };
+
+        const foodDatabase = {
+            "chicken": { calories: 165, protein: 31, carbs: 0, fat: 4 },
+            "apple": { calories: 95, protein: 0, carbs: 25, fat: 0 },
+            "pizza": { calories: 285, protein: 12, carbs: 36, fat: 10 },
+            "egg": { calories: 70, protein: 6, carbs: 0, fat: 5 },
+            "steak": { calories: 250, protein: 26, carbs: 0, fat: 15 },
+            "rice": { calories: 205, protein: 4, carbs: 45, fat: 0 },
+            "salmon": { calories: 208, protein: 20, carbs: 0, fat: 13 },
+            "broccoli": { calories: 55, protein: 4, carbs: 11, fat: 0 },
+            "banana": { calories: 105, protein: 1, carbs: 27, fat: 0 },
+            "milk": { calories: 103, protein: 8, carbs: 12, fat: 2 },
+            "chips": { calories: 152, protein: 2, carbs: 15, fat: 10 },
+            "soda": { calories: 140, protein: 0, carbs: 39, fat: 0 }
+        };
+
+        // Onboarding Age Verification Flow
+        function setupProfileAge() {
+            const ageInput = document.getElementById('user-age-input');
+            const age = parseInt(ageInput.value);
+
+            if (!age || age <= 0) {
+                alert("Please enter a valid age to continue.");
+                return;
+            }
+
+            // Calibrate metrics dynamically according to generational age brackets
+            if (age < 14) {
+                state.calorieGoal = 1800;
+                state.proteinGoal = 70;
+            } else if (age >= 14 && age <= 18) {
+                state.calorieGoal = 2400; // Calibrated for active development years
+                state.proteinGoal = 110;
+            } else {
+                state.calorieGoal = 2000;
+                state.proteinGoal = 140;
+            }
+
+            // Slide out the overlay window smoothly
+            document.getElementById('onboarding-view').classList.add('hidden');
+            
+            // Re-render dashboard targets
+            updateDOM();
+        }
+
+        function analyzeFoodText(text) {
+            const lower = text.toLowerCase();
+            let calories = 0, protein = 0, carbs = 0, fat = 0;
+            let found = false;
+            let suggestion = null;
+
+            for (let [food, stats] of Object.entries(foodDatabase)) {
+                if (lower.includes(food)) {
+                    calories += stats.calories;
+                    protein += stats.protein;
+                    carbs += stats.carbs;
+                    fat += stats.fat;
+                    found = true;
+                }
+            }
+
+            if (lower.includes("chips")) {
+                suggestion = "Try air-popped popcorn or dry-roasted chickpeas instead!";
+            } else if (lower.includes("soda")) {
+                suggestion = "Swap for flavored sparkling water to skip the empty sugars.";
+            }
+
+            return {
+                id: Math.random().toString(36).substr(2, 9),
+                timestamp: new Date(),
+                textInput: found || suggestion ? text : "Custom Dynamic Log",
+                calories: calories === 0 ? 320 : calories,
+                protein: protein === 0 ? 18 : protein,
+                carbs: carbs === 0 ? 30 : carbs,
+                fat: fat === 0 ? 8 : fat,
+                suggestion: suggestion
+            };
+        }
+
+        function switchTab(tabId, headerSubtitle) {
+            document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(btn => btn.classList.remove('active'));
+            
+            document.getElementById(`view-${tabId}`).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            document.getElementById('app-subtitle').innerText = headerSubtitle;
+            
+            if(tabId === 'trends') {
+                renderTrends();
+            }
+        }
+
+        function adjustWater(amount) {
+            state.waterDrank = Math.max(0, state.waterDrank + amount);
+            updateDOM();
+        }
+
+        function submitFoodLog() {
+            const inputBox = document.getElementById('food-input-box');
+            const inputVal = inputBox.value.trim();
+            if (!inputVal) return;
+
+            const newRecord = analyzeFoodText(inputVal);
+            state.records.unshift(newRecord);
+            inputBox.value = "";
+            
+            const currentDayIndex = (new Date().getDay() + 6) % 7; 
+            state.weeklyCalories[currentDayIndex] += newRecord.calories;
+
+            const overviewTabBtn = document.querySelectorAll('.tab-item')[0];
+            overviewTabBtn.click();
+            
+            updateDOM();
+        }
+
+        function updateDOM() {
+            const todayCalories = state.records.reduce((sum, r) => sum + r.calories, 0);
+            const todayProtein = state.records.reduce((sum, r) => sum + r.protein, 0);
+            const todayCarbs = state.records.reduce((sum, r) => sum + r.carbs, 0);
+            const todayFat = state.records.reduce((sum, r) => sum + r.fat, 0);
+            
+            const calProgress = Math.min(todayCalories / state.calorieGoal, 1);
+            const proteinProgress = Math.min(todayProtein / state.proteinGoal, 1);
+            const remainingCalories = Math.max(0, state.calorieGoal - todayCalories);
+
+            document.getElementById('cal-goal-text').innerText = `${state.calorieGoal} kcal`;
+            document.getElementById('cal-eaten').innerText = todayCalories;
+            document.getElementById('cal-remaining-text').innerText = `${remainingCalories} kcal remaining`;
+            
+            const arcRadius = 54;
+            const circumference = 2 * Math.PI * arcRadius;
+            const calculatedOffset = circumference - (calProgress * circumference);
+            document.getElementById('calorie-progress-ring').style.strokeDashoffset = calculatedOffset;
+
+            document.getElementById('protein-stat-text').innerText = `${todayProtein}g / ${state.proteinGoal}g`;
+            document.getElementById('protein-progress-fill').style.width = `${proteinProgress * 100}%`;
+            document.getElementById('water-stat-text').innerText = `${state.waterDrank}/${state.waterGoal} Cups`;
+
+            const totalGrams = todayProtein + todayCarbs + todayFat;
+            if(totalGrams > 0) {
+                document.getElementById('segment-protein').style.width = `${(todayProtein / totalGrams) * 100}%`;
+                document.getElementById('segment-carbs').style.width = `${(todayCarbs / totalGrams) * 100}%`;
+                document.getElementById('segment-fats').style.width = `${(todayFat / totalGrams) * 100}%`;
+            } else {
+                document.getElementById('segment-protein').style.width = '0%';
+                document.getElementById('segment-carbs').style.width = '0%';
+                document.getElementById('segment-fats').style.width = '0%';
+            }
+
+            document.getElementById('pill-p-text').innerText = `${todayProtein}g`;
+            document.getElementById('pill-c-text').innerText = `${todayCarbs}g`;
+            document.getElementById('pill-f-text').innerText = `${todayFat}g`;
+
+            const logsContainer = document.getElementById('history-logs-container');
+            logsContainer.innerHTML = "";
+
+            if(state.records.length === 0) {
+                logsContainer.innerHTML = `<div class="empty-state">Your log is quiet today.</div>`;
+            } else {
+                state.records.forEach(record => {
+                    const timeString = record.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    let swapBlock = record.suggestion ? `
+                        <div class="ai-swap-bubble">
+                            <span style="font-size:13px;">🪄</span>
+                            <div>${record.suggestion}</div>
+                        </div>
+                    ` : '';
+
+                    const rowHTML = `
+                        <div class="food-row-card">
+                            <div class="food-row-top">
+                                <div>
+                                    <div class="food-row-title">${record.textInput}</div>
+                                    <div class="food-row-time">${timeString}</div>
+                                </div>
+                                <div class="food-row-cal">+${record.calories} Cal</div>
+                            </div>
+                            <div class="food-row-tags">
+                                <div class="micro-tag" style="background: rgba(34,87,252,0.08); color: var(--macro-blue);">Prot: ${record.protein}g</div>
+                                <div class="micro-tag" style="background: rgba(18,198,132,0.08); color: var(--macro-green);">Carb: ${record.carbs}g</div>
+                                <div class="micro-tag" style="background: rgba(255,105,97,0.08); color: var(--macro-coral);">Fat: ${record.fat}g</div>
+                            </div>
+                            ${swapBlock}
+                        </div>
+                    `;
+                    logsContainer.insertAdjacentHTML('beforeend', rowHTML);
+                });
+            }
+        }
+
+        function renderTrends() {
+            const maxVal = 2500;
+            state.weeklyCalories.forEach((cal, index) => {
+                const percentage = Math.min((cal / maxVal) * 100, 100);
+                const bar = document.getElementById(`chart-bar-${index}`);
+                if(bar) {
+                    bar.style.height = `${Math.max(percentage, 5)}%`;
+                }
+            });
+        }
+
+        window.onload = function() {
+            state.records.push({
+                id: "initial-seed",
+                timestamp: new Date(),
+                textInput: "Grilled Chicken Rice Bowl",
+                calories: 540, protein: 42, carbs: 60, fat: 8,
+                suggestion: null
+            });
+
+            const currentDayIndex = (new Date().getDay() + 6) % 7; 
+            state.weeklyCalories[currentDayIndex] = 540;
+
+            updateDOM();
+        };
+    </script>
+</body>
+</html>
