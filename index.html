@@ -813,6 +813,11 @@
                 id: Math.random().toString(36).substr(2, 9),
                 timestamp: new Date(),
                 textInput: found || suggestion ? text : "Unable to process this food.",
+                calories: calories === 0 ? 0 : calories,
+                protein: protein === 0 ? 0 : protein,
+                carbs: carbs === 0 ? 0 : carbs,
+                fat: fat === 0 ? 0 : fat,
+                suggestion: suggestion
             };
         }
 
