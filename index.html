@@ -812,12 +812,7 @@
             return {
                 id: Math.random().toString(36).substr(2, 9),
                 timestamp: new Date(),
-                textInput: found || suggestion ? text : "Custom Dynamic Log",
-                calories: calories === 0 ? 320 : calories,
-                protein: protein === 0 ? 18 : protein,
-                carbs: carbs === 0 ? 30 : carbs,
-                fat: fat === 0 ? 8 : fat,
-                suggestion: suggestion
+                textInput: found || suggestion ? text : "Unable to process this food.",
             };
         }
 
